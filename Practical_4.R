@@ -4,7 +4,41 @@
 ## Considerations:
 ## Outline high level design:
 
+grad <- function(theta, f, ..., eps = 1e-7) {
+  f.value <- f(theta, ...)
+  p <- length(theta)
+  grad <- vector("numeric", p)
+  if (is.null(attr(f.value,"gradient"))) { ## if f doesn't supply a gradient attribute, we compute the gradient by finite differencing
+    for (i in 1:p) {
+      theta.new <- theta
+      theta.new[i] <- theta[i] + eps
+      grad[i] <- (f(theta.new) - f(theta)) / eps
+    }
+    return(grad)
+  } else { ## if f supplies a gradient attribute
+    return(attr(f.value, "gradient"))
+  }
+}
+  
+Hessian <- function(theta, f, ..., eps = 1e-7) {
+  f.value <- f(theta, ...)
+  p <- length(theta)
+  Hessian <- matrix(0, p, p)
+  if (is.null(attr(f.value,"hessian"))) { ## if f doesn't supply a hessian attribute, we compute the gradient by finite differencing
+    for (i in 1:p) {
+      theta.new <- theta
+      theta.new[i] <- theta[i] + eps
+      Hessian[i,] <- (grad(theta.new, f) - grad(theta, f)) / eps
+    }
+    return(Hessian)
+  } else { ## if f supplies a gradient attribute
+    return(attr(f.value, "hessian"))
+  }
+}
+
+
 bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
+  
   ## input: 
   ##    theta: a vector of initial values for the optimization parameters.
   ##    f: the objective function to minimize. 
@@ -19,13 +53,9 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
   ##    H: the approximate Hessian matrix (obtained by ﬁnite diﬀerencing) at the minimum.
   
   p <- length(theta) ## number of parameters
-  if (f not supply gredient) {
-    g <- ## compute the gradient by finite differencing
-  }
-  
-  B <- diag(p)
+
+  B <- diag(p) ## initialize 
   I <- diag(p)
-  g <- f() ## 求法？？？
   theta.set <- matrix(0, 1, 2)
   theta.set[1, ] <- theta
   iter <- 1 ## initialize the number of iterations
@@ -38,7 +68,15 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
     f <- f(theta)
     g <- g(theta)
     
+    ## Wolfe condition:
+    alpha <- 1 ## initialize alpha = 1
+    c1 <- 
+    c2 <- 0.9
+    delta <- - B %*% g(theta)
+    f(theta + alpha * delta) <= f(theta) + c1 * t(g(theta)) %*% delta
     
+    t(g(theta + alpha * delta)) >= c2 * t(g(theta)) %*% delta
+   
     s <- 
       theta.set[iter + 1, ] <- theta - s  ## theata(k+1) = theata(k) - B(k)g(k)
     y <- g(theta.set[iter + 1, ]) - g(theta)
@@ -49,7 +87,7 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
     
     
     ## 迭代终止条件1：达到最大迭代次数
-    if (iter == iterMax) {
+    if (iter == maxit) {
       print("Reach the maximum number of BFGS iterations!")
       break
     }
@@ -73,7 +111,7 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
 
 theta <-  c(-1,2)
 f <- rb
-rb <- function(theta,getg=FALSE,k=10) {
+rb <- function(theta, getg=FALSE, k=10) {
   ## Rosenbrock objective function, suitable for use by ’bfgs’
   z <- theta[1]; x <- theta[2]
   f <- k*(z-x^2)^2 + (1-x)^2 + 1
