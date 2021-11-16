@@ -65,11 +65,18 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
 
   p <- length(theta) ##number of parameters
   
-  ##Initializing Values for loop
+  ####Initializing Values for loop and testing for finite values######
+  
   I <- B0 <- diag(p) ##Set initial B (B0) to Identity matrix. I: used in computation of adjusted Hess
   theta_0 <- theta ##Current value of theta initialized with supplied theta
   f0 <- f(theta_0, ...) ##Evaluate function at initial theta
   grad_attr <- "gradient" %in% names(attributes(f0)) ##test if function evaluates with gradient
+  
+  ##Test if f evaluated at initial theta has a finite value
+  ##Testing before gradient evaluation because it must be finite for gradient to work
+  if(is.nan(f0) | is.infinite(f0)){
+    stop("Evaluation of objective function at initial theta yielded a non-finite value")
+  }
   
   ##set initial gradient based on whether gradient function is supplied with f
   if(grad_attr == T){
@@ -78,15 +85,20 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     grad0 <- fd_grad(theta = theta_0, f = f, fk = f0, ...) ##calculate by finite differentiation if not
   }
   
+  ##Test if initial Theta has a finite derivative
+  if(sum(is.nan(grad0)) > 0 | sum(is.infinite(grad0)) > 0){
+    stop(paste0("Evaluation of gradient at initial theta yielded a non-finite value\n", "f at initial theta: ", f0))
+  }
+   
   step <- -B0 %*% grad0 ##step defined by BFGS
-  ##Note: grad is in vector form. Mat mult by a vector assumes vector is column
-  ##      so this multiplication is in the format we want
-  
   iter <- 0 ##count how many iterations we have done; start at 0
   c2 <- 0.9 ##Second wolfe condition c2
+  step_iter <- 0 ##Count how many times we reduce step length (if too many issue a error)
+  step_iter2 <- 0 ##Cont how many times we increase step length to meet wolf conditions
   
   ##Iterate to update theta, grad0, B, and f0 until the largest gradient value is smaller than
   ##the the function evaluated at the current theta * tolerance
+  
   while(max(abs(grad0)) > (abs(f0) + fscale) * tol){
     theta_k <- theta_0 + step ##update theta to new theta_k
     fk <- f(theta_k, ...) ##evaluate function at new theta
@@ -97,11 +109,25 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     ##3) Step Length satisfies the second wolf condition:
     ##   gradk^T * step >= c2 * grad0^T *step where c2 = 0.9
     
+    ####Part 1: Finding Correct Step Length####
+    
     ##reduce step length if non-finite or if step length doesn't decrease the function eval
     if(is.nan(fk) | is.infinite(fk) | (fk > f0)){
+      
       step <- step * 0.5 ##reduce step length if it yielded a non-finite function eval
+      step_iter <- step_iter + 1 ##count number of attempts at reducing step length
+      
+      if(step_iter > 1000){##1000 chosen arbitrarily to prevent an infinite (or very large loop) but to allow some testing
+        stop(paste0("Attempts to reduce step size exceeded 1000 iterations before convergence at:\n", 
+        "update iteration: ", iter, "\n",
+        "f: ", fk, "; theta: ", paste(theta_k, collapse = ", "), "\n",
+        "step length: ", paste(step, collapse = ", ")))
+      }
+      
       next ##start current iteration over again if it doesn't work
     }
+    
+    step_iter <- 0 ##reset step iteration for next update loop
     
     ##compute gradients for second wolf test
     if(grad_attr == T){
@@ -110,13 +136,35 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
       gradk <- fd_grad(theta = theta_k, f = f, fk = fk, ...) ##calculate by finite differentiation if not
     }
     
+    
+    ##Test if new theta has a finite derivative (if not yield error)
+    if(sum(is.nan(gradk)) > 0 | sum(is.infinite(gradk)) > 0){
+      stop(paste0("Evaluation of gradient at theta_k yielded a non-finite value at:\n", 
+                  "update iteration: ", iter, "\n",
+                  "f: ", fk, "; theta: ", paste(theta_k, collapse = ", "), "\n"))
+    }
+    
     ##Once the value of fk < f0, test if it meets second wolfe condition
     ##If it does not, will need to increase slightly (since we reduced earlier)
     ##where c2 = 0.9
     if((t(gradk) %*% step) < (c2 * t(grad0) %*% step)){
+      
       step <- step * 1.02 ## increase step slightly until the wolfe condition is met
+      step_iter2 <- step_iter2 + 1 ##count number of attempts at increasing step_length to meet wolf condition
+      
+      if(step_iter2 > 1000){##1000 chosen arbitrarily to prevent an infinite (or very large loop) but to allow some testing
+        stop(paste0("Attempts to meet second wolf condition exceeded 1000 iterations before convergence at:\n", 
+                    "update iteration: ", iter, "\n",
+                    "f: ", fk, "; theta: ", paste(theta_k, collapse = ", "), "\n",
+                    "step length: ", paste(step, collapse = ", ")))
+      }
+      
       next ##repeat iteration with new step if it doesn't work until it does
     }
+    
+    step_iter2 <- 0 ##reset step_iteration (for the wolf conditions) for next update loop
+    
+    ####Part 2: Updating New Values####
     
     ##Calculate new B
     yk <- gradk - grad0; rho_k <- drop((t(step) %*% yk)^-1) ##rho_k is scalar
@@ -176,6 +224,11 @@ beale <- function(theta){
   f <- (1.5-x+x*y)^2+(2.25-x+(x*y)^2)^2 + (2.625-x+(x*y)^3)^2
   return(f)
 }
+# 
+# ackley <- function(theta){
+#   {\displaystyle f(x,y)=-20\exp \left[-0.2{\sqrt {0.5\left(x^{2}+y^{2}\right)}}\right]}
+#   {\displaystyle -\exp \left[0.5\left(\cos 2\pi x+\cos 2\pi y\right)\right]+e+20}{\displaystyle -\exp \left[0.5\left(\cos 2\pi x+\cos 2\pi y\right)\right]+e+20}
+# }
 
 
 
@@ -183,6 +236,6 @@ test <- bfgs(theta, rb, getg = T)
 test2 <- bfgs(theta, rb)
 optim(theta, rb, method = "BFGS", hessian = T)
 
-bfgs(c(4,1), f = beale)
+bfgs(c(100,100), f = beale)
 optim(c(4,1), fn = beale, hessian = T)
 #bfgs(theta = c(0,0), f= bohachevsky, getg = T)
