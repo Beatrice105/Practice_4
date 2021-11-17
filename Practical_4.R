@@ -36,6 +36,42 @@ Hessian <- function(theta, f, ..., eps = 1e-7) {
   }
 }
 
+wolfcon1<-function(theta, delta, g, alpha, c1 = 0.1, f){
+  ### the function of wolf condition 1 ###
+  f(theta + alpha * delta) <= f(theta) + alpha * c1 * t(g) %*% delta 
+}
+
+wolfcon2<-function(theta,delta,g,alpha, c2 = 0.9,f){
+  ### the function of wolf condition 2 ###
+  t(grad(theta+alpha*delta,f)) %*% delta >= c2 * t(g) %*% delta
+}
+
+alpha_determine <- function(theta, delta, grad, c1=0.1, c2=0.9, f){
+  ### the function for determining the reasonable value of alpha ###
+  a <- 0
+  b <- 1000000
+  alpha <- 1
+  j = 0
+  while(TRUE){
+    if (wolfcon1(theta,delta,grad,alpha, c1 , f)){
+      ### For the value the alpha get now, if it disobey the wolfcon1, then execute the following ###
+      j <- j + 1
+      b <- alpha
+      alpha <- (a+ alpha)/2
+      #print(alpha)
+      next
+    }
+    if (wolfcon2(theta,delta,grad,alpha, c2, f)){
+      ### For the value the alpha get now, if it disobey the wolfcon2, then execute the following ###
+      a <- alpha
+      alpha <- min(c(2*alpha,(alpha+b)/2))
+      #print(alpha)
+      next
+    }
+    break
+  }
+  return (alpha)
+}
 
 bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
   
@@ -53,63 +89,43 @@ bfgs <- function(theta,f,...,tol=1e-5,fscale=1,maxit=100) {
   ##    H: the approximate Hessian matrix (obtained by ﬁnite diﬀerencing) at the minimum.
   
   p <- length(theta) ## number of parameters
-
   B <- diag(p) ## initialize 
   I <- diag(p)
-  theta.set <- matrix(0, 1, 2)
+  theta.set <- matrix(0, maxit, 2)
   theta.set[1, ] <- theta
-  iter <- 1 ## initialize the number of iterations
+  iter <- 0 ## initialize the number of iterations
+  f0 <- f(theta)
+  g <- grad(theta, f)
   
-  while (err0 > maxit) {
+  while (max(abs(g)) >= (abs(f0)+fscale) * tol) {
     
     ## the process of Newton 
-    ## iter = 1
+    iter <-  iter + 1
     theta <- theta.set[iter, ]
-    f <- f(theta)
-    g <- g(theta)
+    g <- grad(theta, f)
+    delta <- - B %*% g
     
-    ## Wolfe condition:
-    alpha <- 1 ## initialize alpha = 1
-    c1 <- 
-    c2 <- 0.9
-    delta <- - B %*% g(theta)
-    f(theta + alpha * delta) <= f(theta) + c1 * t(g(theta)) %*% delta
+    alpha <- alpha_determine(theta, delta, g, c1 = 0.1, c2 = 0.9, f)
+    s <- alpha * delta
+    theta.set[iter + 1, ] <- theta - s  ## theta(k+1) = theta(k) - s(k)
+    y <- grad(theta.set[iter + 1, ], f) - g
     
-    t(g(theta + alpha * delta)) >= c2 * t(g(theta)) %*% delta
-   
-    s <- 
-      theta.set[iter + 1, ] <- theta - s  ## theata(k+1) = theata(k) - B(k)g(k)
-    y <- g(theta.set[iter + 1, ]) - g(theta)
-    
-    rho <- drop( solve(t(s) %*% y) ) ## simplify
-    item <- (I - rho * s %*% t(y)) ## avoid repeat computation
+    rho <- 1 / drop(t(s) %*% y)
+    item <- I - rho * s %*% t(y) ## avoid repeat computation
     B <- item %*% B %*% item + rho * s %*% t(s)
-    
-    
-    ## 迭代终止条件1：达到最大迭代次数
-    if (iter == maxit) {
-      print("Reach the maximum number of BFGS iterations!")
-      break
-    }
-    
-    ## 迭代终止条件2：找到满足精度要求的解
-    if (abs(theta(iter+1)-theta(iter)) < tol) {
-      return()
-      break
-    }
-    
-    iter <-  iter + 1 
+    if (iter == maxit) break
     
   }
+ 
+  g <- grad(theta, f)
+  H <- Hessian(theta, f)
   
-  
-  
-  result <- c(f, theta, iter, g, H)
+  result <- list(f = f0, theta = theta , iter = iter, g = g, H = H)
   return(result)
   
 } 
 
-theta <-  c(-1,2)
+theta <- c(-1,2)
 f <- rb
 rb <- function(theta, getg=FALSE, k=10) {
   ## Rosenbrock objective function, suitable for use by ’bfgs’
@@ -123,24 +139,21 @@ rb <- function(theta, getg=FALSE, k=10) {
 optim(c(-1,2), rb, hessian = T, method="BFGS")
 bfgs(theta = c(-1,2), f = rb)
 
+boha1 <- function(xx)
+{
+  x1 <- xx[1]
+  x2 <- xx[2]
+  
+  term1 <- x1^2
+  term2 <- 2*x2^2
+  term3 <- -0.3 * cos(3*pi*x1)
+  term4 <- -0.4 * cos(4*pi*x2)
+  
+  y <- term1 + term2 + term3 + term4 + 0.7
+  return(y)
+}
 
-## theta如果是多维的，应该同时分别算？？？
-theta ## 初始值
-err0 <- inf
-tol ## 最大容许误差
-maxit ## 最大迭代次数
-
-
-
-
-
-
-
-
-
-
-
-
-
+boha1(theta)
+bfgs(theta, boha1)
 
 
