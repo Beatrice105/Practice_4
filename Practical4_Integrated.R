@@ -371,7 +371,8 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
 
 ##End of Functions
 #################################################################################################
-
+## Test for Functions
+#################################################################################################
 
 nll3 <- function(theta,time,y) {
   ## -ve log likelihood for AIDS model y_i ~ Poi(alpha*exp(beta*t_i))
