@@ -107,8 +107,6 @@ wolfcon1<-function(f0,fk,alpha,delta,grad,c1 = 0.1,...){
   ##grad: gradient evaluated at previous theta
   ##c1: Initial wolfe 1 condition c1 where  0 < c1 < c2 < 1; default 0.1
 
-  
-  #fk <- f(theta+alpha*delta,...) ##f at new theta
   return(fk - f0 - alpha*c1*t(grad)%*%delta)
 }
 
@@ -129,7 +127,6 @@ wolfcon2<-function(alpha,delta,grad,gradk,c2 = 0.9,...){
   ##gradk: gradient evaluated at updated theta
   ##c2: Initial wolfe 2 condition c2 where  0 < c1 < c2 < 1; default 0.9
   
-  #gradk <- gradients(theta+alpha*delta,f=f,...) ##gradient at updated theta
   return(t(gradk)%*%(alpha*delta) - c2*t(grad)%*%(alpha*delta)) ##test wolfe
 }
 
