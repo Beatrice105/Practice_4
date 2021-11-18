@@ -344,9 +344,6 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     ##Calculate values needed to update B
     y_t <- grad_t - grad_0 #difference between current grad_t and previous grad_0
     rho_t <- ((t(s_t)%*%y_t)[1,1])^(-1) #rho defined as (s_t^T*y_t)^-1; scalar
-    #sy_t <- s_t%*%t(y_t)  #saving this multiplication to make B update calc more efficient
-
-    
     
     ##Update B
     ##Normal formula for updating B is:
