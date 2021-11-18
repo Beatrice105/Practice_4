@@ -174,7 +174,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ### We also need to ensure that any subsequent decrease during wolf1 does not decrease so much that it again does not satisfy wolfe 2
   ### This is why the first step updates alpha to be 0.5*(a + alpha) = mean(alpha that passes wolf 1, increased alpha)
   
-  ### Again, these steps ensure that alpha gets more and more narrowed with each iteration
+  ### Again, these steps ensure that alpha gets more and more narrow with each iteration
   ### We will refer to this methodology section throughout the code
   
   
@@ -205,7 +205,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
       b <- alpha ##store most recent alpha; used to update alpha for wolfe condition 2
       alpha <- (a+ alpha)/2 ##scale down using value for "a"; See notes above
       
-      ##if too many attempts at reduction occur without a reduction  issue an error
+      ##if too many attempts at reduction occur without a reduction issue an error
       if(step_iter1 > 5000){
         stop(paste0("Attempts to reduce step size exceeded 5000 iterations before convergence at:\n",
                     "update iteration: ", iter, "\n",
@@ -249,7 +249,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
       next##attempt wolfe condition 1 and 2 again until met
     }
     
-    break ##once both are met exist the while looop
+    break ##once both are met exist the while loop
   }
   return (alpha) ##return the step length scaling factor that meets both wolfe conditions
 }
@@ -335,7 +335,7 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     ##calculate updated theta, step, and gradient with new step = s_t = alpha*delta
     ##where alpha scales delta to meet wolfe conditions
     
-    s_t <- alpha*delta # scaled step to meet wolf conditions
+    s_t <- alpha*delta # scaled step to meet wolfe conditions
     theta_t <- theta_0 + s_t ##updated theta at current iteration
     ft <- f(theta_t, ...) ##updated objective evaluated at new theta
     grad_t <- gradients(theta_t,f=f,...) ##updated gradient at current iteration
