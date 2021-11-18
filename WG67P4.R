@@ -321,7 +321,9 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
   
   while(max(abs(grad_0)) > (abs(f0) + fscale) * tol){
     
-    if (iter > maxit){break} ##stop evaluating if convergence has not occurred before max # iterations
+    if (iter > maxit){
+      stop("Surpassed max iterations before convergence") ##stop evaluating if convergence has not occurred before max # iterations
+      } 
     
     delta <- -B0 %*% grad_0 ##delta at step iter = -B[iter]*gradient; ie prev -B * prev grad
     
