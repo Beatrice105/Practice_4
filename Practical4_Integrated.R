@@ -3,6 +3,19 @@
 ##Practical 4: BFGS Optimization
 
 ##Goal:
+##The Overall goal of this project is to write a function to implement
+##the quasi-newton BFGS optimization method
+##The method attempts to minimize an objective function f given
+##Starting parameters theta. The function uses successive approximations
+##Of the inverse hessian to update a step length for theta until
+##the gradient of the function evaluated at the new theta is approximately 0.
+##The update of B (Inverse hessian) is defined such that the step length
+##Meets the wolfe conditions: 
+## 1) f(new theta) <= (f(old theta) + c1 * grad(old theta)^T * steplength)
+## 2) (grad(new theta)^T * alpha * steplength)  >= (c2 * grad(old theta)^T * alpha*steplength)
+
+##The following functions break up these necessary tasks
+##But the main function is the last: bfgs
 
 #################################################################################################
 ##Start of Functions
@@ -17,9 +30,6 @@ difference <- function(theta,f,eps = 1e-8,...){
   ##Inputs:
   ##theta: values of theta where f is to be differentiated
   ##f: Objective function to differentiate
-  ##f0: f evaluated at theta (it will already be evaluated
-  ##    in the bfgs pipeline, so to save repeat computation
-  ##    we will just use the value provided)
   ##eps: small value used to approximate 0 when differentiating
   
   
@@ -41,7 +51,6 @@ gradients <- function(theta,f,...){
   ##Inputs:
   ##theta: parameter values to evaluate gradient at
   ##f: objective function to evaluate at theta (for finite differentiation step)
-  ##f0: function evaluated at theta
   
   ##determine way to calculate gradient
   obj <- f(theta,...)
@@ -62,9 +71,6 @@ fd_Hess <- function(theta, gradk, f, eps = 1e-7,...){
   ##gradk: gradient evaluated at values of theta (and f)
   ##f: objective function that gradient comes from; 
   ##   used to identify gradient
-  ##f0: f evaluated at theta (it will already be evaluated
-  ##    in the bfgs pipeline, so to save repeat computation
-  ##    we will just use the value provided)
   ##eps: value close to zero to approximate a small change in "x"
   ##...: Additional arguments of provided function
   
@@ -146,6 +152,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ##f0: objective function evaluated at previous theta
   ##iter: iteration in bfgs loop that we are testing
   ##c1: Initial wolfe 1 condition c1 where  0 < c1 < c2 < 1; default 0.1
+  ##c2: Initial wolfe 2 condition c2 where 0 < c1 < c2 < 1; default 0.9
 
   ### Methodology:
   ### the goal of the function is to determine a scaling factor, alpha, that lets step length fulfill the wolf conditions 1 and 2
@@ -153,21 +160,21 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ### if the theta does not fulfill wolf condition2, we need to increase alpha so that it can fulfill
   ### The remaining comments give a detailed explanation of the methodology; feel free to skip if this is sufficient.
   
-  ### The idea is that if theta disobeys wolf1, then we halve the step length of let alpha = 0.5*alpha, 
-  ### if theta disobeys wolf2, then we increase alpha by (alpha+2*alpha)/2 = 1.5 * alpha
-  ### In general, we could halve alpha until it fulfills wolfe condition 1 and then increase if it doesn't fulfill wolf2
-  ### but we need to ensure that the subsequent increase does not surpass the last iteration of alpha that failed wolf1
-  ### In other words, the increase still needs to fulfill wolf1.
+  ### The idea is that if theta disobeys wolf1, then we initially reduce the step length until it fulfills wolf1.
+  ### However, too much of a decrease may prevent it from fulfilling wolf2. So if the reduction does not meet wolf2,
+  ### We must slightly increase alpha to meet wolf2. However, we still need to ensure that the subsequent increase does not surpass 
+  ### the last iteration of alpha that failed wolf1. In other words, the increase still needs to fulfill wolf1.
 
   ### To ensure this, we record both the iteration of alpha that passed wolf1 and the last iteration of alpha that failed wolf1
-  ### b is to record the alpha's value at the last iteration where alpha did not pass wolf1
-  ### a is to record the alpha's value at the last iteration where alpha passed wolf1 but not wolf2
+  ### b is to record alpha's value at the last iteration where alpha did not pass wolf1
+  ### a is to record alpha's value at the last iteration where alpha passed wolf1 but not wolf2
   
-  ### So if alpha disobeys wolf2, we update alpha to be alpha[t] = min(2*alpha[t-1], 0.5*(alpha[t-1] + b))
-  ### In other words we take the smallest increase from either 2*(alpha that passes wolf1) or mean(alpha that passed wolf 1, alpha that failed wolf 1)
+  ### If alpha disobeys wolf2, we update alpha to be alpha[t] = min(2*alpha[t-1], 0.5*(alpha[t-1] + b))
+  ### In other words we take the smallest increase from either 2*(alpha that passes wolf1) or 
+  ### mean(alpha that passed wolf 1, alpha that failed wolf 1)
   
   ### In essence, this strategy increases alpha to satisfy wolf2 but not so much that it should not satisfy wolf1
-  ### We also need to enure that any subsequent decrease during wolf1 does not decrease so much that it again does not satisfy wolfe 2
+  ### We also need to ensure that any subsequent decrease during wolf1 does not decrease so much that it again does not satisfy wolfe 2
   ### This is why the first step updates alpha to be 0.5*(a + alpha) = mean(alpha that passes wolf 1, increased alpha)
   
   ### Again, these steps ensure that alpha gets more and more narrowed with each iteration
@@ -213,13 +220,14 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
       next ##attempt wolfe condition 1 again until met
     }
     
-    
+    step_iter1 <- 0 ##reset step iteration count for the first condition test
     gradk <- gradients(theta_k,f=f,...) ##gradients updated at new theta and alpha after wolf 1
     
     
     ##Test to make sure gradient is finite; if it is not, it will cause problems for wolfe condition 2
     if(sum(is.nan(gradk)) > 0 | sum(is.infinite(gradk)) > 0){
       alpha = alpha * 0.5 ##reduce alpha by half to make finite
+      warning("Evaluation of gradient yielded a non-finite value")
       next ##start iteration again if evaluation of gradient is non-finite
     }
     
@@ -252,44 +260,113 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
 
 
 bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
-  t <- 0 # initial step t = 0
-  obj <- f(theta,...) # get the objective value with theta
-  grad_t <- gradients(theta,f,...) # the gradient value at step t = 0
-  p <- length(theta) # length of theta 
-  theta_t <- theta # the theta value at step t = 0
-  B_t <- diag(p) # the initial inverse hensian matrix approximation B_t matrix at t= 0
-  g <- grad_t 
-  f0 <- obj 
-  graphs <- matrix(0,maxit,p)
-  while (TRUE){
-    if (t == maxit){break} 
-    else if (max(abs(g)) < (abs(f0)+fscale)*tol) {break}
-    
-    
-    delta_t <- -B_t%*%grad_t # delta at step t = - B[t]*gradient[t]
-    alpha_t <- alpha_determine(theta_t,delta_t,grad_t, c1 = 0.1, c2 = 0.9 , f = f,f0 = f0, iter = t,...) # determine the suitable alpha[t]
-    s_t <- alpha_t*delta_t # s[t] = alpha[t]*delta[t]
-    y_t <- gradients(theta_t+ s_t,f = f,...) - gradients(theta_t,f = f,...) # y[t] = gradient(theta[t]+s[t]) - gradient(theta[t])
-    rho_t <- ((t(s_t)%*%y_t)[1,1])^(-1) # rho[t] = s[t]'*y[t]
-    sy_t <- s_t%*%t(y_t)  #sy[t] = s[t]*y[t]'
-    
-    t <- t+1 # update step t= t+1
-    #B_t <- B_t -rho_t*(B_t%*%t(sy_t)) - (rho_t)*((sy_t)%*%B_t) + (rho_t^2)*sy_t%*%B_t%*%t(sy_t) + rho_t*s_t%*%t(s_t)
-    B_t <- (diag(p) - rho_t*sy_t)%*%B_t%*%t(diag(p) - rho_t*sy_t) + rho_t*s_t%*%t(s_t)
-    theta_t <- theta_t + s_t # update the theta[t] = theta[t] + s[t]
-    grad_t <- gradients(theta_t,f = f,...) # update gradient[t] = gradients(theta[t])
-    g <-grad_t
-    obj <- f(theta_t,...)
-    f0 <- obj
-    graphs[t,] <- theta_t
-    H <- fd_Hess(theta = theta_t, gradk = grad_t, f = f, eps = 1e-7, ...)
-    
-    ##Making symmetric for non-symmetric hessians derived with finite differentiation
-    if(is.null(attr(f0, "gradient"))){H <- 0.5 * (t(H) + H)}
-    
-    #print(alpha_t)
+  ##Goal:
+  ##Write a function to implement the quasi-newton BFGS optimization method
+  ##The method attempts to minimize an objective function f given
+  ##Starting parameters theta. The function uses successive approximations
+  ##Of the inverse hessian to update a step length for theta until
+  ##the gradient of the function evaluated at the new theta is approximately 0.
+  ##The update of B (Inverse hessian) is defined such that the step length
+  ##Meets the wolfe conditions: 
+  ## 1) f(new theta) <= (f(old theta) + c1 * grad(old theta)^T * steplength)
+  ## 2) (grad(new theta)^T * alpha * steplength)  >= (c2 * grad(old theta)^T * alpha*steplength)
+  
+  ##Thus the first step is to find a scaling factor, alpha, such that the step length
+  ##meets these conditions. And the second step to to update B
+  ##We have defined 3 separate functions (wolfcon1, wolfcon2, and alpha_determine) above
+  ##to solve the step length problem. Please refer to them for a detailed methodology of the process
+  
+  ##Inputs: 
+  ##theta: initial value of parameters to start optimization process
+  ##f: objective function to minimize (If the output of f provides a "gradient" attribute,
+  ##   these values will be used as gradient; otherwise, the function will use finite differentiation to solve)
+  ##...: additional parameters for f(...)
+  ##tol: error tolerated between gradient and 0 (how small gradient must be to be considered optimized)
+  ##fscale: scaling factor to account for objective functions that are optimized at (0,0)
+  ##maxit: maximum number of iterations allowed to try to reach convergence before stopping the function
+  
+  ##Output:
+  ##f: value of objective evaluated at the optimized theta values
+  ##theta: value of parameters that optimizes f
+  ##g: gradient of the objective (if f yields an object with a "gradient" attribute, it will solve via this;
+  ##   otherwise it will solve via finite differentiation)
+  ##iter: total number of iterations required to update theta to an optimized value
+  ##H: Approximate Hessian at the optimized point solved via finite 
+  ##   differentiation of gradients at optimized theta
+  
+  
+  ####Initializing Values for update loop and testing for finite values######
+  p <- length(theta) ##number of parameters in theta
+  I <- B0 <- diag(p) ##Set initial B (B0) to Identity matrix. I: used in computation of adjusted Hess
+  theta_0 <- theta ##Current value of theta initialized with supplied theta
+  f0 <- f(theta_0, ...) ##Current evaluation of theta initialized with supplied theta
+  
+  
+  ##Test if f evaluated at initial theta has a finite value
+  ##Testing before gradient evaluation because it must be finite for gradient to work
+  if(is.nan(f0) | is.infinite(f0)){
+    stop("Evaluation of objective function at initial theta yielded a non-finite value")
   }
-  return (list(f = f0[1], theta = drop(theta_t), g = drop(grad_t), iter = t, H = H))
+  
+  ##set initial gradient for theta_t before updating (ie iteration 0)
+  grad_0 <- gradients(theta = theta_0,f = f,...)
+  
+  ##Test if initial Theta has a finite derivative
+  if(sum(is.nan(grad_0)) > 0 | sum(is.infinite(grad_0)) > 0){
+    stop(paste0("Evaluation of gradient at initial theta yielded a non-finite value\n", "f at initial theta: ", f0))
+  }
+  
+  iter <- 0 ##count how many iterations we have done; start at 0
+
+  
+  ##Iterate to update theta, grad0, B, and f0 until the largest gradient value is smaller than
+  ##the the function evaluated at the current theta * tolerance
+  
+  while(max(abs(grad_0)) > (abs(f0) + fscale) * tol){
+    
+    if (iter > maxit){break} ##stop evaluating if convergence has not occurred before max # iterations
+    
+    delta <- -B0 %*% grad_0 ##delta at step iter = -B[iter]*gradient; ie prev -B * prev grad
+    
+    #determine the suitable alpha[iter] to scale the step to meet wolfe conditions
+    ##see alpha_determine documentation for methodology
+    alpha <- alpha_determine(theta_0,delta,grad_0, f = f, f0 = f0, 
+                               c1 = 0.1, c2 = 0.9 , iter = iter,...) 
+    
+    ##calculate updated theta, step, and gradient with new step = s_t = alpha*delta
+    ##where alpha scales delta to meet wolfe conditions
+    
+    s_t <- alpha*delta # scaled step to meet wolf conditions
+    theta_t <- theta_0 + s_t ##updated theta at current iteration
+    ft <- f(theta_t, ...) ##updated objective evaluated at new theta
+    grad_t <- gradients(theta_t,f=f,...) ##updated gradient at current iteration
+    
+    ##Calculate values needed to update B
+    y_t <- grad_t - grad_0 #difference between current grad_t and previous grad_0
+    rho_t <- ((t(s_t)%*%y_t)[1,1])^(-1) #rho defined as (s_t^T*y_t)^-1; scalar
+
+    ##Update B
+    ##Normal formula for updating B is:
+    #Bt <- (I - rho_t * s_t %*% t(y_t))%*%B0%*%(I - rho_t * y_t %*% t(s_t)) + rho_t * s_t %*% t(s_t)
+    
+    ##A more efficient formula is:
+    update_coefficient <- (I - rho_t*(s_t%*%t(y_t))) ##multiply in this order for efficiency
+    Bt <- (update_coefficient) %*% B0 %*% t(update_coefficient) + rho_t*s_t%*%t(s_t)
+    
+    ##Update theta_t to theta_0, ft to f0, and Bt to B0 etc once all conditions are met
+    theta_0 <- theta_t; f0 <- ft; grad_0 <- grad_t; B0 <- Bt
+    iter <- iter + 1 ##update the iterations we have gone through (not counting step length adjustments)
+
+  }
+  
+  ##Calculate hessian by finite differentiation
+  H <- fd_Hess(theta = theta_t, gradk = grad_t, f = f, eps = 1e-7, ...)
+  
+  ##Making symmetric for non-symmetric hessians derived with finite differentiation
+  if(is.null(attr(f0, "gradient"))){H <- 0.5 * (t(H) + H)}
+  
+  ##return list of all necessary outputs
+  return (list(f = f0[1], theta = drop(theta_t), iter = iter, g = drop(grad_t), H = H))
 }
 
 
