@@ -39,7 +39,7 @@ difference <- function(theta,f,eps = 1e-8,...){
     new_theta <- theta # copy the original theta to create new vector of theta
     new_theta[i] <- theta[i] + eps # replace the ith parameter with the theta[i] + eps
     diff_results[i] <- (f(new_theta,...) - f(theta,...))/eps ##f(x_new) - f(x_previous)/ eps
-    } 
+  } 
   # output the gradient
   return (diff_results)} 
 
@@ -65,7 +65,7 @@ fd_Hess <- function(theta, gradk, f, eps = 1e-7,...){
   ##Goal: function to evaluate Hessian of a given function f at values theta
   ##      via finite differentiation of gradients
   ##      Finds derivative by: dgrad/dtheta = (grad(theta + eps) - grad(theta))/eps
-
+  
   
   ##theta: values of parameters to evaluate f at
   ##gradk: gradient evaluated at values of theta (and f)
@@ -106,7 +106,7 @@ wolfcon1<-function(f0,fk,alpha,delta,grad,c1 = 0.1,...){
   ##delta: initial step length before reduction under wolfe condition 1
   ##grad: gradient evaluated at previous theta
   ##c1: Initial wolfe 1 condition c1 where  0 < c1 < c2 < 1; default 0.1
-
+  
   return(fk - f0 - alpha*c1*t(grad)%*%delta)
 }
 
@@ -150,7 +150,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ##iter: iteration in bfgs loop that we are testing
   ##c1: Initial wolfe 1 condition c1 where  0 < c1 < c2 < 1; default 0.1
   ##c2: Initial wolfe 2 condition c2 where 0 < c1 < c2 < 1; default 0.9
-
+  
   ### Methodology:
   ### the goal of the function is to determine a scaling factor, alpha, that lets step length fulfill the wolf conditions 1 and 2
   ### if the theta does not fulfill wolf condition1, we need to decrease alpha so that it can fulfill 
@@ -161,7 +161,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ### However, too much of a decrease may prevent it from fulfilling wolf2. So if the reduction does not meet wolf2,
   ### We must slightly increase alpha to meet wolf2. However, we still need to ensure that the subsequent increase does not surpass 
   ### the last iteration of alpha that failed wolf1. In other words, the increase still needs to fulfill wolf1.
-
+  
   ### To ensure this, we record both the iteration of alpha that passed wolf1 and the last iteration of alpha that failed wolf1
   ### b is to record alpha's value at the last iteration where alpha did not pass wolf1
   ### a is to record alpha's value at the last iteration where alpha passed wolf1 but not wolf2
@@ -174,7 +174,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
   ### We also need to ensure that any subsequent decrease during wolf1 does not decrease so much that it again does not satisfy wolfe 2
   ### This is why the first step updates alpha to be 0.5*(a + alpha) = mean(alpha that passes wolf 1, increased alpha)
   
-  ### Again, these steps ensure that alpha gets more and more narrowed with each iteration
+  ### Again, these steps ensure that alpha gets more and more narrow with each iteration
   ### We will refer to this methodology section throughout the code
   
   
@@ -205,7 +205,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
       b <- alpha ##store most recent alpha; used to update alpha for wolfe condition 2
       alpha <- (a+ alpha)/2 ##scale down using value for "a"; See notes above
       
-      ##if too many attempts at reduction occur without a reduction  issue an error
+      ##if too many attempts at reduction occur without a reduction issue an error
       if(step_iter1 > 5000){
         stop(paste0("Attempts to reduce step size exceeded 5000 iterations before convergence at:\n",
                     "update iteration: ", iter, "\n",
@@ -249,7 +249,7 @@ alpha_determine<- function(theta,delta,grad, f, f0,iter, c1=0.1,c2=0.9,...){
       next##attempt wolfe condition 1 and 2 again until met
     }
     
-    break ##once both are met exist the while looop
+    break ##once both are met exist the while loop
   }
   return (alpha) ##return the step length scaling factor that meets both wolfe conditions
 }
@@ -314,7 +314,7 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
   }
   
   iter <- 0 ##count how many iterations we have done; start at 0
-
+  
   
   ##Iterate to update theta, grad0, B, and f0 until the largest gradient value is smaller than
   ##the the function evaluated at the current theta * tolerance
@@ -323,19 +323,19 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     
     if (iter > maxit){
       stop("Surpassed max iterations before convergence") ##stop evaluating if convergence has not occurred before max # iterations
-      } 
+    } 
     
     delta <- -B0 %*% grad_0 ##delta at step iter = -B[iter]*gradient; ie prev -B * prev grad
     
     #determine the suitable alpha[iter] to scale the step to meet wolfe conditions
     ##see alpha_determine documentation for methodology
     alpha <- alpha_determine(theta_0,delta,grad_0, f = f, f0 = f0, 
-                               c1 = 0.1, c2 = 0.9 , iter = iter,...) 
+                             c1 = 0.1, c2 = 0.9 , iter = iter,...) 
     
     ##calculate updated theta, step, and gradient with new step = s_t = alpha*delta
     ##where alpha scales delta to meet wolfe conditions
     
-    s_t <- alpha*delta # scaled step to meet wolf conditions
+    s_t <- alpha*delta # scaled step to meet wolfe conditions
     theta_t <- theta_0 + s_t ##updated theta at current iteration
     ft <- f(theta_t, ...) ##updated objective evaluated at new theta
     grad_t <- gradients(theta_t,f=f,...) ##updated gradient at current iteration
@@ -355,7 +355,7 @@ bfgs <-function(theta,f,...,tol=1e-5,fscale=1,maxit=100){
     ##Update theta_t to theta_0, ft to f0, and Bt to B0 etc once all conditions are met
     theta_0 <- theta_t; f0 <- ft; grad_0 <- grad_t; B0 <- Bt
     iter <- iter + 1 ##update the iterations we have gone through (not counting step length adjustments)
-
+    
   }
   
   ##Calculate hessian by finite differentiation
